@@ -25,7 +25,7 @@ parsing, the debug information of internall working.
 - `win32diskimager` Windows tool for writing/reading images to USB,SD, and much more
 
 # `CRC32_BIBLE.c` 
-## THE HOLLY FUCKIN' BIBLE OF CRC32 IMPLEMENTATIONS :). Free implementations.
+### THE HOLLY FUCKIN' BIBLE OF CRC32 IMPLEMENTATIONS :). Free implementations.
 
 https://web.archive.org/web/20190108202303/http://www.hackersdelight.org/hdcodetxt/crc.c.txt
 
