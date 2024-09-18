@@ -22,7 +22,9 @@ parsing, the debug information of internall working.
 - `FileSystemAnalyzer` free utility to see the raw data from disks
 - `HxD64` hex utility to save disk content image, edit files, and much more
 - `formatx` Windows format renamed (usage formatx.exe F: /FS:FAT /V:FLASH /Q /X)
-- `win32diskimager` Windows tool for writing/reading images to USB,SD, and much more
+- `win32diskimager` Windows tool for writing/reading images to USB, SD, and much more.
+                    You can use this tool to write the 25Q32FLASHformatted.img
+                    to UDISK in Windows, and there will be no need to format. 
 
 # `CRC32_BIBLE.c` 
 ### THE HOLLY FUCKIN' BIBLE OF CRC32 IMPLEMENTATIONS :). Free implementations.
