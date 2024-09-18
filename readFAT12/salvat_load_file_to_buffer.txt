@@ -1,0 +1,303 @@
+// THE INITIAL FUNCTION TO LOAD AN ENTIRE FILE IN THE BUFFER
+// Function to load a file into the buffer
+int load_file_to_buffer(struct BPB *bpb, const char *buffer, const char *filename_to_find, char *fileBuffer, uint32_t buffer_size) {
+    uint32_t root_dir_offset = bpb->root_dir_sector * bpb->bytes_per_sector;
+
+
+
+    // Iterate through the root directory entries
+    for (uint16_t i = 0; i < bpb->root_dir_entries; i++) {
+        const char *entry = buffer + root_dir_offset + i * FAT12_ENTRY_SIZE;
+
+        // First byte 0x00 indicates no more entries
+        if (entry[0] == 0x00) break;
+
+        // Check if it's a valid file (skip deleted/unused entries)
+        if ((uint8_t)entry[0] == 0xE5 || (entry[11] & 0x08)) continue;
+
+        // Extract filename (8 chars) and extension (3 chars)
+        char filename[9] = {0};
+        char ext[4] = {0};
+        strncpy(filename, entry, 8);
+        strncpy(ext, entry + 8, 3);
+
+        // Remove trailing spaces from filename and extension
+        for (int j = 7; j >= 0 && filename[j] == ' '; j--) {
+            filename[j] = '\0';
+        }
+        for (int j = 2; j >= 0 && ext[j] == ' '; j--) {
+            ext[j] = '\0';
+        }
+
+        // Combine the filename and extension to compare with the target
+        char full_filename[FAT12_FILENAME_LENGTH + 2] = {0};  // 8.3 format + dot
+        
+        snprintf(full_filename, sizeof(full_filename), "%.8s.%.3s", filename, ext);
+
+        
+        if (strcmp(full_filename, filename_to_find) == 0) {                                             // Compare with the target file name (case-sensitive)
+            
+            
+            // Extract the file size (little endian, 4 bytes at offset 28)
+            uint32_t file_size = read32((uint8_t*)entry, 28);
+            
+             
+            if (file_size > buffer_size) {
+                printf("Error: Buffer too small for file %s (size: %u bytes)\n", filename_to_find, file_size);
+                return -1;  // File size exceeds buffer
+            }
+
+            // Extract the starting cluster (little endian)
+            uint16_t starting_cluster = read16((uint8_t*)entry, 26);
+            uint16_t current_cluster = starting_cluster;
+
+            // Read the file data cluster by cluster
+            uint32_t bytes_read = 0;
+            
+            
+            
+            
+            while (bytes_read < file_size) {                                                            // While readed bytes are less than the file size
+                
+                uint32_t cluster_location = get_file_location(bpb, current_cluster);
+                
+                printf("Cluster location 0x%X \n", cluster_location);
+                
+                uint32_t cluster_size = bpb->sectors_per_cluster * bpb->bytes_per_sector;
+                uint32_t remaining_bytes = file_size - bytes_read;
+                uint32_t bytes_to_copy = (remaining_bytes < cluster_size) ? remaining_bytes : cluster_size;
+            
+                printf("Bytes to copy %u \n", bytes_to_copy); 
+                
+            
+            
+            
+                // Ensure buffer has enough space
+                if (bytes_read + bytes_to_copy > 10*1024) { // FILEBUFFER_SIZE ===========================================================================
+                    fprintf(stderr, "Error: Buffer overflow. fileBuffer size: %u, bytes to copy: %u\n", 10*1024, bytes_to_copy);
+                    break;
+                }
+            
+            
+            
+                char *dest = fileBuffer + bytes_read;
+                
+                const char *src = buffer + cluster_location;
+            
+                // Copy data from the cluster to the file buffer
+                //memcpy(dest, src, bytes_to_copy);
+                
+                // Print each byte as a character
+                for (uint32_t i = 0; i < bytes_to_copy; i++) {
+                    // Print the character at the current position
+                    printf("%c", src[i]);
+                }               
+                
+      
+                bytes_read += bytes_to_copy;
+            
+                printf("Bytes readed %u \n", bytes_read);
+            
+            
+            
+                // If we've read all the bytes needed, we are done
+                if (bytes_read >= file_size) {
+                    break;
+                }
+            
+            
+            
+            
+            
+                // Get the next cluster from the FAT
+                current_cluster = get_next_cluster(bpb, current_cluster, buffer);
+            
+            
+            
+            
+            
+            
+                // Check if we have reached the end of the file
+                if (current_cluster >= 0xFF8) {  // End-of-file marker
+                    if (bytes_read < file_size) {
+                        
+                        // Calculate how many bytes are still needed
+                        uint32_t bytes_needed = file_size - bytes_read;
+                        
+                        
+                        char *dest = fileBuffer + bytes_read;
+                        
+                        const char *src = buffer + cluster_location;
+                        
+                        // Copy the remaining bytes from the current cluster
+                        //memcpy(fileBuffer + bytes_read, buffer + cluster_location, bytes_needed);
+                        
+                        
+                        // Print each byte as a character
+                        for (uint32_t i = 0; i < bytes_needed; i++) {
+                            // Print the character at the current position
+                            printf("%c", src[i]);
+                        }                        
+                        
+                        
+                        bytes_read += bytes_needed;
+                        fprintf(stderr, "Warning: Reached end-of-file marker, but copied remaining %u bytes from the last cluster\n", bytes_needed);
+                    }
+                    break;
+                }                   
+                
+            }
+
+/*
+
+
+
+            while (bytes_read < file_size) {
+                uint32_t cluster_location = get_file_location(bpb, current_cluster);
+                
+                //#define INVALID_CLUSTER_LOCATION 0xFFFF
+                //if (cluster_location == INVALID_CLUSTER_LOCATION) {
+                //    fprintf(stderr, "Error: Invalid cluster location for cluster %u\n", current_cluster);
+                //    break;
+                //}
+            
+                uint32_t cluster_size = bpb->sectors_per_cluster * bpb->bytes_per_sector;
+                uint32_t remaining_bytes = file_size - bytes_read;
+                uint32_t bytes_to_copy = (remaining_bytes < cluster_size) ? remaining_bytes : cluster_size;
+            
+                // Ensure buffer has enough space
+                if (bytes_read + bytes_to_copy > 10*1024) {
+                    fprintf(stderr, "Error: Buffer overflow. fileBuffer size: %u, bytes to copy: %u\n", 10*1024, bytes_to_copy);
+                    break;
+                }
+            
+                // Copy data from the cluster to the file buffer
+                memcpy(fileBuffer + bytes_read, buffer + cluster_location, bytes_to_copy);
+                bytes_read += bytes_to_copy;
+            
+                // If we've read all the bytes needed, we are done
+                if (bytes_read >= file_size) {
+                    break;
+                }
+            
+                // Get the next cluster from the FAT
+                current_cluster = get_next_cluster(bpb, current_cluster, buffer);
+            
+                // Check if we have reached the end of the file
+                if (current_cluster >= 0xFF8) {  // End-of-file marker
+                    if (bytes_read < file_size) {
+                        // Calculate how many bytes are still needed
+                        uint32_t bytes_needed = file_size - bytes_read;
+                        // Copy the remaining bytes from the current cluster
+                        memcpy(fileBuffer + bytes_read, buffer + cluster_location, bytes_needed);
+                        bytes_read += bytes_needed;
+                        fprintf(stderr, "Warning: Reached end-of-file marker, but copied remaining %u bytes from the last cluster\n", bytes_needed);
+                    }
+                    break;
+                }
+            }
+*/
+
+
+/*
+            while (bytes_read < file_size) {  // While read bytes are less than the file size
+            
+                printf("\n\n=========================================================================\n");            
+                printf("=========================================================================\n");            
+                printf("========================================================================= \n");            
+            
+                uint32_t cluster_location = get_file_location(bpb, current_cluster);
+            
+                printf("Cluster location 0x%X \n", cluster_location);
+                               
+                uint32_t cluster_size = bpb->sectors_per_cluster * bpb->bytes_per_sector;
+                uint32_t remaining_bytes = file_size - bytes_read;
+                uint32_t bytes_to_copy = (remaining_bytes < cluster_size) ? remaining_bytes : cluster_size;
+            
+                
+ 
+                printf("Bytes to copy %u \n", bytes_to_copy);
+                printf("=======================================================================\n");
+                printf("=========================== DATA COPYED ===============================\n\n");
+                
+                // Ensure buffer has enough space
+                if (bytes_read + bytes_to_copy > 10*1024) { // FILEBUFFER_SIZE ===========================================================================
+                    fprintf(stderr, "Error: Buffer overflow. fileBuffer size: %u, bytes to copy: %u\n", 10*1024, bytes_to_copy);
+                    break;
+                }
+            
+                // Copy bytes from the current cluster
+                char *dest = fileBuffer + bytes_read;
+                const char *src = buffer + cluster_location;
+                //memcpy(dest, src, bytes_to_copy);
+                
+                // Print each byte as a character
+                //for (uint32_t i = 0; i < bytes_to_copy; i++) {
+                //    printf("%c", src[i]);
+                //}
+            
+                bytes_read += bytes_to_copy;
+            
+                printf("\n\n==================\n\n");
+                printf(" Total bytes till now %u \n\n", bytes_read);
+                
+                
+                // If we've read all the bytes needed, we are done
+                if (bytes_read >= file_size) {
+                    break;
+                }                
+                
+                // Get the next cluster from the FAT
+                current_cluster = get_next_cluster(bpb, current_cluster, buffer);
+            
+                printf("\n\n=======================\n\n");
+                printf("Cluster location 0x%X \n\n", cluster_location);
+            
+            
+                // Check if we have reached the end of the file
+                if (current_cluster >= 0xFF8) {   // End-of-file marker (FAT12 EOF markers range from 0xFF8 to 0xFFF)
+                    if (bytes_read < file_size) {
+                        // Calculate how many bytes are still needed
+                        uint32_t bytes_needed = file_size - bytes_read;
+                        
+                        printf("Printing remaining %u bytes from the last cluster...\n", bytes_needed);
+                        printf("\n\n========================================================================= \n\n"); 
+                       
+                        // Copy the remaining bytes from the last cluster
+                        char *dest = fileBuffer + bytes_read;                       
+                        const char *src = buffer + cluster_location;                        
+                        //memcpy(dest, src, bytes_to_copy);
+                                                
+                        // Print remaining bytes from the last cluster
+                        for (uint32_t i = 0; i < bytes_needed; i++) {
+                            printf("%c", src[i]);
+                        }
+            
+                        bytes_read += bytes_needed;
+                        printf("\n\n========================================================================= \n\n");
+                        printf("Warning: Reached end-of-file marker, printed remaining %u bytes from the last cluster\n", bytes_needed);
+                        printf(" Total bytes till now %u \n\n", bytes_read);
+                        printf("\n\n========================================================================= \n\n");
+                    }
+                    
+                    break; // Exit the loop after reading the last cluster
+                } 
+                
+            }
+*/
+
+
+
+
+
+            printf("==== File %s loaded into buffer (size: %u bytes)\n", filename_to_find, bytes_read);
+            return bytes_read;  // Return the actual number of bytes read
+        }
+    }
+
+
+
+    printf("File %s not found\n", filename_to_find);
+    return -1;  // File not found
+}
+
