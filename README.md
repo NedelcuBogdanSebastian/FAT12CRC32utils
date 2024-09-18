@@ -24,4 +24,8 @@ parsing, the debug information of internall working.
 - `formatx` Windows format renamed (usage formatx.exe F: /FS:FAT /V:FLASH /Q /X)
 - `win32diskimager` Windows tool for writing/reading images to USB,SD, and much more
 
+# `CRC32_BIBLE.c` - THE HOLLY FUCKIN' BIBLE OF CRC32 IMPLEMENTATIONS :). Free implementations
 
+https://web.archive.org/web/20190108202303/http://www.hackersdelight.org/hdcodetxt/crc.c.txt
+
+https://web.archive.org/web/20190716204559/http://www.hackersdelight.org/permissions.htm
